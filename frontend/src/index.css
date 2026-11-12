@@ -1,0 +1,286 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ---------------------------------------------------------------------------
+   Theme palettes. Colours are space-separated RGB channels so Tailwind's
+   `rgb(var(--x) / <alpha-value>)` opacity modifiers work. :root is the dark
+   default (no flash before JS); [data-theme="…"] overrides per theme.
+--------------------------------------------------------------------------- */
+:root {
+  /* FDR ramp — easy (green) to hard (red), identical across every theme.
+     ColorBrewer RdYlGn: the hue runs green->yellow->red AND the lightness falls
+     monotonically, so the order still reads correctly without colour vision —
+     and every cell shows its number alongside, never colour alone. */
+  --fdr-1: 26 152 80;   /* clearly easiest */
+  --fdr-2: 145 207 96;
+  --fdr-3: 254 224 139; /* neutral */
+  --fdr-4: 252 141 89;
+  --fdr-5: 215 48 39;   /* clearly hardest */
+  --fdr-ink: 17 24 32;  /* constant dark label for the light mid-ramp cells */
+
+  /* Dark (default) */
+  --surface-0: 8 11 17;
+  --surface-1: 17 22 31;
+  --surface-2: 26 33 46;
+  --surface-3: 41 52 71;
+  --ink: 233 239 245;
+  --ink-muted: 150 163 178;
+  --ink-faint: 104 116 131;
+  --brand: 61 214 172;
+  --brand-dim: 33 150 122;
+  --accent-glow: 61 214 172;
+  --pitch-a: 54 150 100;
+  --pitch-b: 62 166 112;
+  --pos-gkp: 252 197 74;
+  --pos-def: 116 192 252;
+  --pos-mid: 84 224 168;
+  --pos-fwd: 253 146 160;
+  color-scheme: dark;
+}
+
+[data-theme="light"] {
+  --surface-0: 244 246 250;
+  --surface-1: 255 255 255;
+  --surface-2: 237 241 247;
+  --surface-3: 220 227 237;
+  --ink: 16 24 34;
+  --ink-muted: 82 93 108;
+  --ink-faint: 137 148 163;
+  --brand: 12 146 108;
+  --brand-dim: 11 128 94;
+  --accent-glow: 12 146 108;
+  --pitch-a: 82 190 126;
+  --pitch-b: 94 204 140;
+  --pos-gkp: 161 98 7;
+  --pos-def: 3 105 161;
+  --pos-mid: 4 120 87;
+  --pos-fwd: 190 24 62;
+  color-scheme: light;
+}
+
+[data-theme="football"] {
+  /* Premier League inspired: deep purple pitch-night + vivid PL green. */
+  --surface-0: 28 3 36;
+  --surface-1: 43 8 53;
+  --surface-2: 59 16 71;
+  --surface-3: 82 30 96;
+  --ink: 246 235 250;
+  --ink-muted: 197 165 210;
+  --ink-faint: 143 112 158;
+  --brand: 0 231 148;
+  --brand-dim: 0 176 111;
+  --accent-glow: 233 0 82; /* PL magenta glow */
+  --pitch-a: 56 158 104;
+  --pitch-b: 64 172 116;
+  --pos-gkp: 255 209 102;
+  --pos-def: 125 211 252;
+  --pos-mid: 0 231 148;
+  --pos-fwd: 255 122 162;
+  color-scheme: dark;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+/* body carries a fixed-attachment gradient, so paint the themed base colour on
+   html too: without it an overscroll bounce can flash the browser's white
+   canvas behind the page. */
+html {
+  @apply bg-surface-0;
+}
+
+body {
+  @apply bg-surface-0 text-ink antialiased;
+  font-family: theme("fontFamily.sans");
+  font-feature-settings: "tnum" 1, "cv05" 1; /* tabular numbers + nicer Inter */
+  /* A soft accent wash so the page never reads as a flat slab. */
+  background-image: radial-gradient(
+    1200px 600px at 100% -10%,
+    rgb(var(--accent-glow) / 0.06),
+    transparent 60%
+  );
+  background-attachment: fixed;
+}
+
+/* The shell now spans ultra-wide monitors, which is right for tables, grids and
+   the pitch — but a 1800px line of prose is unreadable. Cap long-form text at a
+   comfortable measure; data blocks are unaffected. */
+main p,
+main li {
+  max-width: 80ch;
+}
+
+/* Smooth theme crossfade on the elements that carry colour. */
+body,
+.card,
+.btn,
+.input,
+.pill,
+header,
+th,
+td {
+  transition:
+    background-color 0.22s ease,
+    border-color 0.22s ease,
+    color 0.22s ease;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(var(--surface-3)) transparent;
+}
+*::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+*::-webkit-scrollbar-thumb {
+  @apply bg-surface-3 rounded-full;
+}
+
+@layer components {
+  /* Page shell: fills wide screens instead of a narrow centred column, but
+     stays capped on ultra-wide so text lines never get unreadably long. */
+  .app-container {
+    @apply mx-auto w-full px-3 sm:px-5 lg:px-8;
+    max-width: min(100%, 1920px);
+  }
+  .card {
+    @apply bg-surface-1 border border-surface-2 rounded-xl shadow-card;
+  }
+  /* Narrow, few-column tables (prices, captaincy, differentials, leagues) stay
+     at a readable width instead of stretching the player column across an
+     ultra-wide monitor and pushing the numbers to the far edge. The Explorer is
+     excluded — it genuinely has 20 columns to show. */
+  .table-card {
+    @apply card;
+    max-width: 1120px;
+  }
+  .pill {
+    @apply inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium;
+  }
+  .btn {
+    @apply inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium
+           bg-surface-2 border border-surface-3/60 hover:bg-surface-3 transition-colors
+           disabled:opacity-40 disabled:cursor-not-allowed;
+  }
+  .btn-brand {
+    @apply btn border-transparent bg-brand-dim hover:bg-brand text-surface-0
+           hover:text-surface-0 font-semibold shadow-[0_2px_12px_-4px_rgb(var(--brand)/0.5)];
+  }
+  .input {
+    @apply bg-surface-2 border border-surface-3 rounded-lg px-2.5 py-1.5 text-sm
+           text-ink placeholder:text-ink-faint focus:outline-none focus:ring-2
+           focus:ring-brand/50 focus:border-brand/50 transition-colors;
+  }
+  .skeleton {
+    @apply animate-pulse bg-surface-2 rounded-lg;
+  }
+  /* Frosted header + a hairline accent line at its base. */
+  .app-header {
+    @apply sticky top-0 z-20 border-b border-surface-2
+           bg-surface-0/70 backdrop-blur-xl backdrop-saturate-150;
+  }
+  .brand-title {
+    @apply text-lg font-extrabold tracking-tight;
+    background: linear-gradient(
+      92deg,
+      rgb(var(--brand)),
+      rgb(var(--ink))
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .hero {
+    background:
+      radial-gradient(120% 140% at 0% 0%, rgb(var(--brand) / 0.14), transparent 55%),
+      linear-gradient(180deg, rgb(var(--surface-2) / 0.5), rgb(var(--surface-1)));
+  }
+  /* Attacking half of a pitch, kept to a sane width so the XI reads as a shape
+     rather than floating in a wide green band. Mown stripes run across; the
+     markings are an SVG overlay (see PitchMarkings). */
+  /* Pitch + bench share one wrapper so they line up and read as one surface. */
+  .pitch-wrap {
+    width: 100%;
+    max-width: 700px;
+    margin-inline: auto;
+  }
+  .pitch-bg {
+    position: relative;
+    width: 100%;
+    /* Real half-pitch proportions (68m x 52.5m) — compact enough that the
+       whole XI is visible without scrolling. On a narrow phone that ratio is
+       shorter than four rows of cards, so a min-height keeps the pitch taller
+       than its contents instead of clipping them (the markings simply stretch,
+       as they do on the official mobile view). */
+    aspect-ratio: 680 / 540;
+    min-height: 384px;
+    border-radius: 10px 10px 0 0;
+    overflow: hidden;
+    background: repeating-linear-gradient(
+      0deg,
+      rgb(var(--pitch-a)) 0px,
+      rgb(var(--pitch-a)) 10%,
+      rgb(var(--pitch-b)) 10%,
+      rgb(var(--pitch-b)) 20%
+    );
+    box-shadow: inset 0 0 100px rgb(0 0 0 / 0.14);
+  }
+  /* Rows sit above the markings and spread down the half: GK near the goal,
+     forwards near the halfway line. */
+  .pitch-rows {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    height: 100%;
+    padding: 3.5% 1% 3%;
+  }
+  /* Spread each line across the pitch rather than bunching it in the middle —
+     space-evenly keeps equal gaps at the touchlines and between players, so a
+     back four and a front three both look like a shape. */
+  .pitch-row {
+    display: flex;
+    justify-content: space-evenly;
+    align-items: flex-start;
+    gap: 2px;
+  }
+  /* Bench: same turf, flattened and dimmed, joined to the pitch above. */
+  .pitch-bench {
+    background: rgb(var(--pitch-b));
+    box-shadow: inset 0 8px 16px -10px rgb(0 0 0 / 0.7);
+    border-top: 2px solid rgb(255 255 255 / 0.18);
+    border-radius: 0 0 10px 10px;
+    padding: 10px 1% 12px;
+  }
+  /* Squad card, styled like the official pitch view: kit above a white name
+     bar above a coloured value bar. */
+  .player-card {
+    @apply relative flex flex-col items-center transition-transform;
+  }
+  .player-card:hover {
+    transform: translateY(-2px);
+  }
+  .player-card__name {
+    @apply w-full truncate text-center text-[11px] font-medium leading-tight
+           px-1 py-[3px] rounded-t;
+    background: rgb(var(--surface-1));
+    color: rgb(var(--ink));
+    box-shadow: 0 1px 4px rgb(0 0 0 / 0.35);
+  }
+  .player-card__value {
+    @apply w-full text-center text-[11px] font-semibold leading-tight
+           px-1 py-[3px] rounded-b tabular-nums;
+    background: rgb(var(--brand-dim));
+    color: rgb(var(--surface-0));
+  }
+  .player-card__value--muted {
+    background: rgb(var(--surface-3));
+    color: rgb(var(--ink));
+  }
+}

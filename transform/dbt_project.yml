@@ -1,0 +1,33 @@
+name: one_stop_fpl
+version: "0.1.0"
+config-version: 2
+profile: one_stop_fpl
+
+model-paths: ["models"]
+test-paths: ["tests"]
+seed-paths: ["seeds"]
+macro-paths: ["macros"]
+
+target-path: "target"
+clean-targets:
+  - "target"
+  - "dbt_packages"
+
+models:
+  one_stop_fpl:
+    staging:
+      +materialized: view
+      +schema: staging
+    dimensions:
+      +materialized: table
+    facts:
+      +materialized: table
+    marts:
+      +materialized: table
+
+vars:
+  # Sanity bounds for data-quality gates (mirrors config.yaml::quality).
+  min_rows_per_season: 10000
+  # The live/in-progress season is exempt from the completed-season row floor.
+  # Mirrors config.yaml::seasons.current.
+  current_season: "2026-27"

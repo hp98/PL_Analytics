@@ -1,0 +1,38 @@
+{
+  "generated_at": "2026-09-02T06:16:19.752469+00:00",
+  "seasons": [
+    "2023-24",
+    "2024-25",
+    "2025-26"
+  ],
+  "verdict": "model",
+  "ship_model": true,
+  "n_rows": 87077,
+  "n_pool": 39596,
+  "metrics": {
+    "xp": {
+      "mae": 1.8941655041373104,
+      "spearman_pooled": 0.34298055241693504,
+      "spearman_per_gw": 0.35396037581204776
+    },
+    "last6_avg": {
+      "mae": 2.0848402195507965,
+      "spearman_pooled": 0.2763138868549481,
+      "spearman_per_gw": 0.28105498456090444
+    },
+    "last3_avg": {
+      "mae": 2.1854438158736573,
+      "spearman_pooled": 0.26329597522365156,
+      "spearman_per_gw": 0.26720138117330633
+    },
+    "season_ppg": {
+      "mae": 1.989741359262193,
+      "spearman_pooled": 0.2946481891802553,
+      "spearman_per_gw": 0.3018581018359297
+    }
+  },
+  "notes": [
+    "FPL `ep_next` is live-only and absent from the historical archive, so it cannot be a historical baseline; last6_avg / last3_avg / season_ppg stand in.",
+    "Primary gate metric is mean per-gameweek Spearman over the relevant-player pool."
+  ]
+}

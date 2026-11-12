@@ -1,0 +1,12 @@
+version: 2
+
+models:
+  - name: mart_player_form
+    description: "Latest per-player rolling form snapshot (3/6/10 GW). Backs the Explorer."
+    columns:
+      - name: player_nk
+        tests: [unique, not_null]
+      - name: season
+        tests: [not_null]
+      - name: minutes_reliability_last6
+        description: "Fraction of last 6 appearances with 60+ minutes, in [0,1]."

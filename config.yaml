@@ -1,0 +1,193 @@
+# =============================================================================
+# One-Stop FPL — single source of truth for pipeline configuration and all
+# modelling assumptions. Any "magic number" used by the model or optimiser MUST
+# live here with a comment explaining why, per §12 of the brief.
+# =============================================================================
+
+project:
+  name: one-stop-fpl
+  timezone: UTC
+
+# -----------------------------------------------------------------------------
+# Historical span. See §2 of the brief for the hard data limits.
+#   - player_gameweek_seasons: clean, schema-consistent window (position + xP
+#     columns reliably present). Used for the star schema and projection model.
+#   - prior_seasons: wider window used only for long-run positional priors.
+# Seasons are FPL season labels as used by the vaastav community archive.
+# -----------------------------------------------------------------------------
+seasons:
+  current: "2026-27"          # the live/active season (GW1 played as of 2026-08)
+  player_gameweek:            # M1 star-schema window (2020-21 -> present)
+    - "2020-21"
+    - "2021-22"
+    - "2022-23"
+    - "2023-24"
+    - "2024-25"
+    - "2025-26"
+    - "2026-27"               # live season; thin early on but real
+  prior_only:                 # positional-prior window (2016-17 -> 2019-20)
+    - "2016-17"
+    - "2017-18"
+    - "2018-19"
+    - "2019-20"
+
+# -----------------------------------------------------------------------------
+# Data sources. Every URL is a public, read-only, permissive endpoint.
+# -----------------------------------------------------------------------------
+sources:
+  vaastav:
+    # Community archive: player gameweek data 2016-17 -> present.
+    raw_base: "https://raw.githubusercontent.com/vaastav/Fantasy-Premier-League/master/data"
+    files:
+      merged_gw: "{season}/gws/merged_gw.csv"   # player x gameweek, the core file
+      players_raw: "{season}/players_raw.csv"    # element metadata for the season
+      teams: "{season}/teams.csv"                # team dimension for the season
+      fixtures: "{season}/fixtures.csv"          # fixture list for the season
+  fpl_api:
+    # Official API — used later (M3) via the edge proxy, not in M1 ingest.
+    base: "https://fantasy.premierleague.com/api"
+    # Gap between per-player element-summary requests in the ingest top-up. It
+    # is a ~670-request crawl, so it is held to ~1 req/s on top of the throttle.
+    history_request_gap_seconds: 1.0
+
+# -----------------------------------------------------------------------------
+# HTTP client behaviour (§4: retry with backoff, be polite).
+# -----------------------------------------------------------------------------
+http:
+  timeout_seconds: 30
+  max_retries: 5
+  backoff_base_seconds: 1.0     # exponential: base * 2**attempt, capped below
+  backoff_max_seconds: 30.0
+  polite_delay_seconds: 0.5     # min gap between requests to one host
+  user_agent: "one-stop-fpl/0.1 (+https://github.com/one-stop-fpl; educational)"
+
+# -----------------------------------------------------------------------------
+# Filesystem layout (relative to the repo root).
+# -----------------------------------------------------------------------------
+paths:
+  raw: "data/raw"             # dated, verbatim source dumps (gitignored)
+  interim: "data/interim"     # normalised, typed parquet the dbt layer reads
+  warehouse: "data/warehouse" # duckdb database file (gitignored)
+  public: "data/public"       # published static JSON/parquet bundles (canonical)
+  frontend_data: "frontend/public/data"  # publish target the Vite app serves at /data
+
+# -----------------------------------------------------------------------------
+# Publish stage (cold plane -> static bundles the frontend loads).
+# -----------------------------------------------------------------------------
+publish:
+  # Warehouse relations exported to parquet for in-browser DuckDB-WASM querying.
+  parquet_tables:
+    - mart_player_form
+    - fct_player_gameweek
+    - dim_team
+    - dim_fixture
+    - dim_gameweek
+  # Fixture-ticker horizon: how many upcoming gameweeks to project forward.
+  ticker_horizon_gws: 8
+
+# -----------------------------------------------------------------------------
+# Price-change predictor. The real FPL algorithm is UNDISCLOSED; this is a
+# transparent heuristic on net-transfer momentum, normalised by ownership. Values
+# are logistic knobs, not ground truth — the UI must say so (§8.8).
+# -----------------------------------------------------------------------------
+price_predictor:
+  # momentum = net_event_transfers / ((ownership_pct + 0.5) * 1000), then
+  # log-compressed (sign * log1p(|momentum|)) because the raw value is
+  # heavy-tailed and saturated the sigmoid at 1.0 for every popular transfer.
+  # Thresholds/scales are therefore on the LOG scale: ~2.6 is the midpoint
+  # (momentum ~13) and 0.55 spreads the curve across the realistic range.
+  rise_threshold: 2.6
+  rise_scale: 0.55
+  fall_threshold: 2.6
+  fall_scale: 0.55
+  flag_probability: 0.70   # surface anything above this (§8.8)
+
+# -----------------------------------------------------------------------------
+# Modelling assumptions. Placeholders wired in now; consumed from M4 onward.
+# Each value carries the reasoning so it is never an unexplained magic number.
+# -----------------------------------------------------------------------------
+model:
+  # Home advantage as a multiplier on a team's expected goals when at home.
+  # ~1.10-1.15 is the long-run EPL home scoring edge; start conservative.
+  home_advantage: 1.12
+  # Empirical-Bayes shrinkage: weight given to a player's own per-90 rate vs the
+  # positional prior, expressed as the "prior sample size" in 90-min matches.
+  # A player needs ~10 full matches before their own rate dominates the prior.
+  shrinkage_prior_matches: 10
+  # Monte Carlo sims per player-fixture for the 10th/90th percentile band.
+  monte_carlo_sims: 5000
+  # Rolling form windows (gameweeks) for mart_player_form.
+  form_windows: [3, 6, 10]
+  # Team attack/defence strength are an exponentially-weighted average of past
+  # match xG for/against. Half-life in matches: recent form weighted, but a
+  # season's worth still informs the rating.
+  team_strength_halflife_matches: 8
+  # Assumed average minutes for each minutes-model scenario, used to convert
+  # per-90 rates into per-fixture expectations (0 / 1-59 / 60+).
+  class_minutes:
+    short: 32   # a 1-59 appearance averages ~half an hour
+    long: 85    # a 60+ appearance averages a near-full match
+  # Career carry-over for the empirical-Bayes prior, as a half-life in SEASONS.
+  # Cumulative rates used to reset at every season boundary, so for the first
+  # ~10 matches of a season even a proven player was shrunk almost entirely onto
+  # the positional mean: in GW3, own form carried only 180/(180+900) = 17% weight,
+  # projecting Haaland at 0.32 xG90 against a stable four-season rate of ~0.75.
+  # Earlier seasons are now carried in with exponential decay. Strictly past
+  # data, so no look-ahead, and the backtest stays valid.
+  #
+  # Tuned by sweep (walk-forward 2023-24..2025-26, relevant pool n=39,596).
+  # 0.01 disables the carry and reproduces the old model exactly:
+  #   halflife | per-GW rho |   MAE | mean bias on premium players (>=GBP 9.0m)
+  #       0.01 |     0.3558 | 1.901 | -1.110
+  #        0.5 |     0.3553 | 1.898 | -0.798
+  #        1.0 |     0.3540 | 1.894 | -0.723   <- chosen
+  #        1.5 |     0.3531 | 1.892 | -0.727
+  # An HONEST trade, not a free win: the carry costs 0.0018 of per-GW Spearman
+  # (0.5% relative) and buys back 35% of the systematic under-projection of
+  # premium players -- the defect that had Haaland at 4.1. Bias plateaus at 1.0
+  # while rho keeps falling, so 1.0 is the knee of the curve.
+  career_prior_halflife_seasons: 1.0
+  # Softmax temperature for the expected-bonus model: how sharply expected BPS
+  # rank within a fixture converts to bonus probability. Lower = sharper.
+  bonus_softmax_temperature: 6.0
+
+# -----------------------------------------------------------------------------
+# Backtest (§6 validation gate). Walk-forward by gameweek across the last three
+# COMPLETE seasons. The model must beat every baseline on rank correlation or we
+# ship the best baseline and say so.
+# -----------------------------------------------------------------------------
+backtest:
+  seasons: ["2023-24", "2024-25", "2025-26"]
+  # Evaluation is restricted to a "relevant player" pool so the metric is not
+  # dominated by the mass of 0-minute non-players (which every model predicts ~0
+  # for). A player is relevant for a gameweek if they were >=50% likely to play
+  # OR actually played. Baselines are scored on the same pool for fairness.
+  relevant_min_play_prob: 0.5
+  # FPL's own `ep_next` is NOT in the historical archive (live-only field), so it
+  # cannot be a historical baseline. Documented in the report; the achievable
+  # baselines below stand in.
+  baselines: ["last6_avg", "season_ppg", "last3_avg"]
+
+optimiser:
+  # Cost of a hit (points deducted per transfer beyond the free allowance).
+  hit_cost_points: 4
+  # Penalty weight (lambda) on bench xP shortfall in the objective, so the
+  # solver does not field a bench of zeros. Small: bench matters, but far less
+  # than the XI. Tuned in M6.
+  bench_lambda: 0.1
+  # Prune the candidate pool to the top-N players by xP before solving, to keep
+  # the MIP under the 20s runtime target for a 5-GW horizon.
+  candidate_pool_size: 250
+  # Max free transfers that can be banked under current rules. VERIFY against
+  # the live rules at build time (§7) — this is the value as of 2024-25.
+  max_banked_transfers: 5
+
+# -----------------------------------------------------------------------------
+# Data-quality gates enforced in dbt tests (§10). Bad data fails the build.
+# -----------------------------------------------------------------------------
+quality:
+  projection_xp_min: 0
+  projection_xp_max: 25       # sanity bound on any single-GW projection
+  # Expected minimum row count for a full season of player-gameweeks, used as a
+  # regression guard against a truncated/failed ingest.
+  min_rows_per_season: 10000

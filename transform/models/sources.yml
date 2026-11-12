@@ -1,0 +1,20 @@
+version: 2
+
+# The interim parquet produced by `pipeline.run_ingest` is exposed to dbt as an
+# external DuckDB source. dbt-duckdb substitutes `{name}` with the table name and
+# auto-wraps a .parquet path in read_parquet(...). Paths resolve from the dbt
+# invocation CWD (the repo root); override the root via FPL_INTERIM_DIR if needed.
+sources:
+  - name: interim
+    schema: main
+    meta:
+      external_location: "{{ env_var('FPL_INTERIM_DIR', 'data/interim') }}/{name}.parquet"
+    tables:
+      - name: player_gameweek
+        description: "Normalised player x fixture rows (vaastav merged_gw), 2020-21+."
+      - name: players
+        description: "Per-season element metadata (players_raw)."
+      - name: teams
+        description: "Per-season team dimension (teams.csv) with FPL strength ratings."
+      - name: fixtures
+        description: "Per-season fixture list (fixtures.csv)."

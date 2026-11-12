@@ -1,0 +1,12 @@
+# dbt profile for the DuckDB warehouse. Paths are relative to the dbt
+# invocation CWD, which is expected to be the repo root:
+#   dbt build --project-dir transform --profiles-dir transform
+one_stop_fpl:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      path: "data/warehouse/fpl.duckdb"
+      threads: 4
+      # Allow read_parquet over the interim files from the DuckDB session.
+      extensions: []

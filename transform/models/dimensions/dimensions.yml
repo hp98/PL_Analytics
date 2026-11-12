@@ -1,0 +1,49 @@
+version: 2
+
+models:
+  - name: dim_player
+    description: "SCD-2 player dimension on (price, position, team) within a season."
+    columns:
+      - name: player_scd_sk
+        tests: [unique, not_null]
+      - name: player_nk
+        tests: [not_null]
+      - name: season
+        tests: [not_null]
+      - name: valid_from_gw
+        tests: [not_null]
+      - name: valid_to_gw
+        tests: [not_null]
+
+  - name: dim_team
+    columns:
+      - name: team_sk
+        tests: [unique, not_null]
+      - name: team_id
+        tests: [not_null]
+      - name: team_name
+        tests: [not_null]
+
+  - name: dim_gameweek
+    columns:
+      - name: gameweek_sk
+        tests: [unique, not_null]
+      - name: gw
+        tests: [not_null]
+
+  - name: dim_fixture
+    columns:
+      - name: fixture_sk
+        tests: [unique, not_null]
+      - name: fixture_id
+        tests: [not_null]
+      - name: home_team_sk
+        tests:
+          - relationships:
+              to: ref('dim_team')
+              field: team_sk
+      - name: away_team_sk
+        tests:
+          - relationships:
+              to: ref('dim_team')
+              field: team_sk

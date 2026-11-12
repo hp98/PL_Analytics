@@ -1,0 +1,81 @@
+name: cold-plane
+
+# The cold plane: batch ingest -> dbt star schema -> tests. Runs daily at 03:00
+# UTC (post-price-change) and on manual dispatch. Model/optimise/publish stages
+# are appended to this job as later milestones (M4/M6) land.
+on:
+  # The daily schedule is deliberately OFF: refreshes are run on demand, not on
+  # a timer, and the ingest crawls ~670 FPL element-summary pages. To re-enable:
+  # schedule:
+  #   - cron: "0 3 * * *"
+  workflow_dispatch:
+    inputs:
+      with_priors:
+        description: "Also ingest 2016-17..2019-20 prior seasons"
+        type: boolean
+        default: false
+
+concurrency:
+  group: cold-plane
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: uv sync --extra transform --extra model
+
+      - name: Ingest (vaastav archive)
+        run: |
+          if [ "${{ inputs.with_priors }}" = "true" ]; then
+            uv run python -m pipeline.run_ingest --with-priors
+          else
+            uv run python -m pipeline.run_ingest
+          fi
+
+      - name: Build + test star schema (dbt)
+        env:
+          DBT_PROFILES_DIR: transform
+        run: uv run dbt build --project-dir transform
+
+      - name: Python tests
+        run: uv run pytest
+
+      - name: Projection backtest (§6 gate → reports/)
+        run: uv run python -m pipeline.run_backtest
+
+      - name: Publish static bundles (parquet + live FPL JSON + projections)
+        run: uv run python -m pipeline.run_publish
+
+      - name: Upload backtest report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backtest-report
+          path: reports/**
+          retention-days: 30
+
+      - name: Upload published frontend data bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-data
+          path: frontend/public/data/**
+          retention-days: 7
+
+      - name: Upload warehouse + interim as artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: warehouse
+          path: |
+            data/warehouse/*.duckdb
+            data/interim/*.parquet
+          retention-days: 7

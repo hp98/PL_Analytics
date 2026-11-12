@@ -1,0 +1,66 @@
+version: 2
+
+models:
+  - name: fct_player_gameweek
+    description: >
+      Core fact at (season, element, fixture) grain — one row per player per
+      fixture, so double gameweeks are two rows. Source: vaastav merged_gw,
+      2020-21 → present.
+    columns:
+      - name: player_gw_sk
+        description: "Surrogate pk: md5(season|element|fixture)."
+        tests:
+          - unique
+          - not_null
+      - name: player_nk
+        description: "FK to dim_player (season|element); non-unique in the SCD-2 dim."
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_player')
+              field: player_nk
+      - name: season
+        tests: [not_null]
+      - name: gw
+        tests: [not_null]
+      - name: element
+        tests: [not_null]
+      - name: total_points
+        tests: [not_null]
+      - name: minutes
+        tests: [not_null]
+      - name: position
+        tests:
+          - not_null
+          - accepted_values:
+              # MNG = Assistant Manager asset, 2024-25 only (kept, not dropped).
+              values: ["GKP", "DEF", "MID", "FWD", "MNG"]
+      - name: team_sk
+        description: "FK to dim_team (own team), resolved via team-name join."
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_team')
+              field: team_sk
+      - name: opponent_team_sk
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_team')
+              field: team_sk
+      - name: gameweek_sk
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_gameweek')
+              field: gameweek_sk
+      - name: fixture_sk
+        tests:
+          - not_null
+          - relationships:
+              # Cross-file join (merged_gw fixture id -> fixtures.csv). A rescheduled
+              # fixture can, rarely, break this; warn rather than fail the build.
+              to: ref('dim_fixture')
+              field: fixture_sk
+              config:
+                severity: warn
