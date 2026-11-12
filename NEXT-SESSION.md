@@ -183,7 +183,7 @@ gameweek, so a rise during the current week isn't shown (De Cuyper £5.3 there v
 - Optimiser modes 2 & 4 — multi-transfer MIP (client-side greedy today), season-long chip timing
 - Deeper Mini-Leagues (§8.7) — projected final table, rival squad diffs, captain split
 - dbt models `fct_fixture_team`, `fct_manager_gameweek`, `mart_fixture_ticker`, `mart_ownership`
-- **git init + first commit** — repo still has zero commits (header shows `build unknown`)
+- ~~git init + first commit~~ — **done 2026-11-13**: pushed to https://github.com/hp98/PL_Analytics (`main`, replaced the old mock-data PL Matchday app; backup bundle at `LLM Projects/_backups/PL_Analytics-backup-2026-11-12.bundle`). **GitHub Actions has not run yet** — check Settings → Actions is enabled. CI workflow paths were rewritten for this folder being the repo root; the daily cold-plane cron is commented out (manual dispatch only).
 - Cloudflare deployment — needs the user's account
 - **Selling price** is approximated by `now_cost` everywhere; the public API doesn't expose
   per-pick purchase price, so a risen player overstates available budget
